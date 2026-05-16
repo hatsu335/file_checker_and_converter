@@ -10,7 +10,7 @@ window_size:
 inkscape: "C:\\Program Files\\Inkscape\\bin\\inkscape.exe"
 
 # 保存先
-folder: "C:\\Users\\hsm64\\OneDrive\\Desktop"
+folder: "C:\\Users\\******\\OneDrive\\Desktop"
 
 # EPS version
 eps_ver: "--export-ps-level=2"
