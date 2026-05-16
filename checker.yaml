@@ -1,4 +1,3 @@
-# Cドライブ直下へ置く
 # 半径の閾値
 threshold: 4000
 
@@ -6,3 +5,22 @@ threshold: 4000
 window_size:
   x: 650
   y: 500
+
+# Inkscape
+inkscape: "C:\\Program Files\\Inkscape\\bin\\inkscape.exe"
+
+# 保存先
+folder: "C:\\Users\\hsm64\\OneDrive\\Desktop"
+
+# EPS version
+eps_ver: "--export-ps-level=2"
+# eps_ver: "--export-ps-level=3"
+
+# EPS margin
+eps_margin: "--export-margin=20"
+
+# G-code
+gcode:
+  scale: 0.01
+  default_absolute_mode: false
+  arc_length_threshold: 0.1
