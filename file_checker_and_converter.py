@@ -243,27 +243,92 @@ class IntegratedCADApp(QMainWindow):
             break
 
     # =====================================================
-    # DXF Parser
+    # DXF PROCESS
     # =====================================================
     def process_dxf(self, file_path):
 
         try:
 
             doc = ezdxf.readfile(file_path)
+
             msp = doc.modelspace()
 
             self.ax.clear()
 
             found_large_r = False
+            found_short_arc = False
 
+            # -------------------------------------------------
+            # CONFIG
+            # -------------------------------------------------
+            r_threshold = self.config.get(
+                "threshold",
+                100,
+            )
+
+            arc_length_threshold = (
+                self.config.get("gcode", {})
+                .get("arc_length_threshold", 0.1)
+            )
+
+            # =================================================
+            # ENTITY LOOP
+            # =================================================
             for e in msp:
 
+                # =================================================
+                # ARC / CIRCLE
+                # =================================================
                 if e.dxftype() in ("CIRCLE", "ARC"):
 
                     center = e.dxf.center
+
                     radius = e.dxf.radius
 
-                    if radius >= self.threshold:
+                    is_large_r = radius >= r_threshold
+
+                    is_short_arc = False
+
+                    arc_length = None
+
+                    # =============================================
+                    # ARC
+                    # =============================================
+                    if e.dxftype() == "ARC":
+
+                        start_angle = e.dxf.start_angle
+                        end_angle = e.dxf.end_angle
+
+                        sweep_angle = end_angle - start_angle
+
+                        if sweep_angle < 0:
+                            sweep_angle += 360
+
+                        arc_length = (
+                            2
+                            * math.pi
+                            * radius
+                            * sweep_angle
+                            / 360
+                        )
+
+                        is_short_arc = (
+                            arc_length <= arc_length_threshold
+                        )
+
+                    # =============================================
+                    # FLAG
+                    # =============================================
+                    if is_large_r:
+                        found_large_r = True
+
+                    if is_short_arc:
+                        found_short_arc = True
+
+                    # =============================================
+                    # DRAW
+                    # =============================================
+                    if is_large_r or is_short_arc:
 
                         self.draw_arc_highlight(
                             center.x,
@@ -272,7 +337,25 @@ class IntegratedCADApp(QMainWindow):
                             e,
                         )
 
-                        found_large_r = True
+                        # -----------------------------------------
+                        # TEXT
+                        # -----------------------------------------
+                        text = f"R:{radius:.2f}"
+
+                        if arc_length is not None:
+
+                            text += (
+                                f"\nL:{arc_length:.3f}"
+                            )
+
+                        self.ax.text(
+                            center.x,
+                            center.y,
+                            text,
+                            color="red",
+                            fontsize=8,
+                            fontweight="bold",
+                        )
 
                     else:
 
@@ -283,23 +366,65 @@ class IntegratedCADApp(QMainWindow):
                             e,
                         )
 
+                # =================================================
+                # LINE
+                # =================================================
                 elif e.dxftype() == "LINE":
 
                     self.ax.plot(
-                        [e.dxf.start.x, e.dxf.end.x],
-                        [e.dxf.start.y, e.dxf.end.y],
+                        [
+                            e.dxf.start.x,
+                            e.dxf.end.x,
+                        ],
+                        [
+                            e.dxf.start.y,
+                            e.dxf.end.y,
+                        ],
                         color="lightgray",
                         lw=0.5,
                     )
 
+            # =====================================================
+            # TITLE
+            # =====================================================
+            warning_text = []
+
+            if found_large_r:
+
+                warning_text.append(
+                    f"{r_threshold}R以上"
+                )
+
+            if found_short_arc:
+
+                warning_text.append(
+                    f"円弧長{arc_length_threshold}mm以下"
+                )
+
+            title = (
+                f"DXF解析完了 : "
+                f"{os.path.basename(file_path)}"
+            )
+
+            if warning_text:
+
+                title += "  【検出 : "
+                title += " / ".join(warning_text)
+                title += "】"
+
+            # =====================================================
+            # FINALIZE
+            # =====================================================
             self.finalize_plot(
-                f"DXF解析完了 : {os.path.basename(file_path)}",
-                found_large_r,
+                title,
+                found_large_r or found_short_arc,
             )
 
         except Exception as e:
 
-            self.show_error(f"DXFエラー : {str(e)}")
+            self.show_error(
+                f"DXFエラー : {str(e)}"
+            )
 
     # =========================================================
     # GCODE PROCESS
@@ -660,7 +785,7 @@ class IntegratedCADApp(QMainWindow):
 
             if warning_text:
 
-                title += "  【警告 : "
+                title += "  【検出 : "
                 title += " / ".join(warning_text)
                 title += "】"
 
@@ -769,7 +894,8 @@ class IntegratedCADApp(QMainWindow):
                 """
             )
 
-            title += f"  【警告 : {self.threshold}R以上検出】"
+            # title += f"  【警告 : {self.threshold}R以上検出】"
+            title += f"  【警告 : ファイルの修正が必要です】"
 
         else:
 
