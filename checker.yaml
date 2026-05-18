@@ -24,3 +24,7 @@ gcode:
   scale: 0.01
   default_absolute_mode: false
   arc_length_threshold: 0.1
+
+# 名称
+mode_label_rcheck: "Rチェック"
+mode_label_eps: "EPS変換"

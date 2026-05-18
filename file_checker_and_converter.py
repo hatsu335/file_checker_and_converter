@@ -29,9 +29,6 @@ from PySide6.QtGui import QIcon
 # =========================================================
 class IntegratedCADApp(QMainWindow):
 
-    MODE_RCHECK = "R-CHECKER"
-    MODE_EPS = "DXF → EPS CONVERTER"
-
     def __init__(self):
         super().__init__()
 
@@ -46,7 +43,11 @@ class IntegratedCADApp(QMainWindow):
 
         self.resize(window["x"], window["y"])
 
-        self.setWindowTitle("CAD Support Tool")
+        self.setWindowTitle("設計支援ツール")
+        
+        self.mode_label_rcheck = self.config.get("mode_label_rcheck", "R-CHECKER")
+        
+        self.mode_label_eps = self.config.get("mode_label_eps", "DXF → EPS CONVERTER")
         
         # =========================================================
         # Inkscape Path
@@ -56,7 +57,7 @@ class IntegratedCADApp(QMainWindow):
         # --------------------------------------------
         # Current Mode
         # --------------------------------------------
-        self.current_mode = self.MODE_RCHECK
+        self.current_mode = self.mode_label_rcheck
 
         # --------------------------------------------
         # Central Widget
@@ -81,11 +82,11 @@ class IntegratedCADApp(QMainWindow):
         self.drop_label.setStyleSheet(
             """
             QLabel {
-                background-color: #252526;
+                background-color: #2b2b2b;
                 color: white;
-                border: 2px dashed #555;
                 font-size: 14px;
                 font-weight: bold;
+                border-radius: 6px;
             }
             """
         )
@@ -121,10 +122,11 @@ class IntegratedCADApp(QMainWindow):
         self.output_label.setStyleSheet(
             """
             QLabel {
-                background-color: #3c3c3c;
+                background-color: #2b2b2b;
                 color: white;
                 padding: 4px 12px;
                 border-right: 1px solid #555;
+                border-radius: 4px;
             }
             """
         )
@@ -142,10 +144,11 @@ class IntegratedCADApp(QMainWindow):
         self.status_label.setStyleSheet(
             """
             QLabel {
-                background-color: #007acc;
+                background-color: #007bbb;
                 color: white;
                 padding: 4px 12px;
                 font-weight: bold;
+                border-radius: 4px;
             }
             """
         )
@@ -166,30 +169,52 @@ class IntegratedCADApp(QMainWindow):
     # Mode Switch
     # =====================================================
     def toggle_mode(self, event):
-
-        if self.current_mode == self.MODE_RCHECK:
-            self.current_mode = self.MODE_EPS
+        
+        if self.current_mode == self.mode_label_rcheck:
+            self.current_mode = self.mode_label_eps
+            self.status_label.setStyleSheet(
+                """
+                QLabel {
+                    background-color: #e9546b;
+                    color: black;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+                """
+            )
         else:
-            self.current_mode = self.MODE_RCHECK
-
+            self.current_mode = self.mode_label_rcheck
+            self.status_label.setStyleSheet(
+                """
+                QLabel {
+                    background-color: #007bbb;
+                    color: white;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+                """
+            )
+                
         self.update_mode_ui()
 
     def update_mode_ui(self):
 
-        self.status_label.setText(f"MODE : {self.current_mode}")
+        self.status_label.setText(f"モード : {self.current_mode}")
         
-        self.output_label.setText(f"OUTPUT : {self.output_dir}")
+        self.output_label.setText(f"EPS保存先 : {self.output_dir}")
 
-        if self.current_mode == self.MODE_RCHECK:
+        if self.current_mode == self.mode_label_rcheck:
 
             self.drop_label.setText(
-                "DXF または NC(.dat) をドラッグ＆ドロップしてください"
+                "DXF または DAT をこの画面にドラッグ＆ドロップしてください（Ｒチェック）"
             )
 
         else:
 
             self.drop_label.setText(
-                "DXF をドラッグ＆ドロップしてください（EPS変換）"
+                "DXF をこの画面にドラッグ＆ドロップしてください（EPS自動変換）"
             )
             
     # =====================================================
@@ -201,7 +226,7 @@ class IntegratedCADApp(QMainWindow):
         
         if folder:
             self.output_dir = folder
-            self.output_label.setText(f"OUTPUT : {self.output_dir}")
+            self.output_label.setText(f"EPS保存先 : {self.output_dir}")
 
     # =====================================================
     # Drag & Drop
@@ -224,7 +249,7 @@ class IntegratedCADApp(QMainWindow):
             # ----------------------------------------
             # R Checker Mode
             # ----------------------------------------
-            if self.current_mode == self.MODE_RCHECK:
+            if self.current_mode == self.mode_label_rcheck:
 
                 if ext == ".dxf":
                     self.process_dxf(file_path)
@@ -592,6 +617,15 @@ class IntegratedCADApp(QMainWindow):
                                     new_x - center_x,
                                 )
                             )
+                            
+                            # -----------------------------------------
+                            # FULL CIRCLE CHECK
+                            # -----------------------------------------
+                            is_full_circle = (
+                                abs(cur_x - new_x) < 0.000001
+                                and
+                                abs(cur_y - new_y) < 0.000001
+                            )
 
                             # -----------------------------------------
                             # CW / CCW
@@ -615,6 +649,13 @@ class IntegratedCADApp(QMainWindow):
                                 theta2 = end_angle
 
                                 sweep_angle = theta2 - theta1
+                                
+                            # -----------------------------------------
+                            # FULL CIRCLE FIX
+                            # -----------------------------------------
+                            if is_full_circle:
+                                
+                                sweep_angle = 360
 
                             # -----------------------------------------
                             # ARC LENGTH
@@ -661,22 +702,36 @@ class IntegratedCADApp(QMainWindow):
                             # -----------------------------------------
                             # ARC DRAW
                             # -----------------------------------------
-                            arc = Arc(
-                                (center_x, center_y),
+                            if is_full_circle:
+                                
+                                circle = plt.Circle(
+                                    (center_x, center_y),
+                                    radius,
+                                    fill=False,
+                                    color=color,
+                                    lw=lw,
+                                )
+                                
+                                self.ax.add_patch(circle)
+                            
+                            else:
+                            
+                                arc = Arc(
+                                    (center_x, center_y),
 
-                                radius * 2,
-                                radius * 2,
+                                    radius * 2,
+                                    radius * 2,
 
-                                angle=0,
+                                    angle=0,
 
-                                theta1=theta1,
-                                theta2=theta2,
+                                    theta1=theta1,
+                                    theta2=theta2,
 
-                                color=color,
-                                lw=lw,
-                            )
+                                    color=color,
+                                    lw=lw,
+                                )
 
-                            self.ax.add_patch(arc)
+                                self.ax.add_patch(arc)
 
                             # -----------------------------------------
                             # TEXT
@@ -890,6 +945,7 @@ class IntegratedCADApp(QMainWindow):
                     color: #ff8080;
                     border: 2px solid red;
                     font-weight: bold;
+                    border-radius: 6px;
                 }
                 """
             )
@@ -906,6 +962,7 @@ class IntegratedCADApp(QMainWindow):
                     color: #90ee90;
                     border: 2px solid green;
                     font-weight: bold;
+                    border-radius: 6px;
                 }
                 """
             )
@@ -958,6 +1015,7 @@ class IntegratedCADApp(QMainWindow):
                     color: #8ecfff;
                     border: 2px solid #007acc;
                     font-weight: bold;
+                    border-radius: 6px;
                 }
                 """
             )
@@ -977,6 +1035,7 @@ class IntegratedCADApp(QMainWindow):
                     color: #90ee90;
                     border: 2px solid green;
                     font-weight: bold;
+                    border-radius: 6px;
                 }
                 """
             )
@@ -1001,6 +1060,7 @@ class IntegratedCADApp(QMainWindow):
                 color: #ff8080;
                 border: 2px solid red;
                 font-weight: bold;
+                border-radius: 6px;
             }
             """
         )
