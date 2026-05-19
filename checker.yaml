@@ -28,3 +28,37 @@ gcode:
 # 名称
 mode_label_rcheck: "Rチェック"
 mode_label_eps: "EPS変換"
+
+# ファイル移動設定
+move_of_file_1:
+  label: "CAD"
+
+  out_of_folder: "C:\\CADFile"
+  into_folder: "X:\\CADFile"
+
+  ignore:
+    - "tool"
+    - "readme.txt"
+    - "template.sx"
+
+move_of_file_2:
+  label: "LASER"
+
+  out_of_folder: "C:\\LaserFile"
+  into_folder: "X:\\LaserFile"
+
+  ignore:
+    - "tool"
+    - "readme.txt"
+    - "template.dat"
+
+move_of_file_3:
+  label: "CUT"
+
+  out_of_folder: "C:\\CutFile"
+  into_folder: "X:\\CutFile"
+
+  ignore:
+    - "tool"
+    - "readme.txt"
+    - "template.ard"

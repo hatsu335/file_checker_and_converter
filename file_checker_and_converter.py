@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
 )
 from PySide6.QtGui import QIcon
+from move_file_manager import MoveFileManager
 
 # =========================================================
 # Main Window
@@ -105,8 +106,9 @@ class IntegratedCADApp(QMainWindow):
         # --------------------------------------------
         # Status Bar
         # --------------------------------------------
-        self.status = QStatusBar()
-        self.setStatusBar(self.status)
+        # self.status = QStatusBar()
+        # self.setStatusBar(self.status)
+        self.status = self.statusBar()
 
         # --------------------------------------------
         # Output Directory Label
@@ -117,7 +119,7 @@ class IntegratedCADApp(QMainWindow):
         self.output_dir = os.path.expanduser(folder)
         
         self.output_label = QLabel()
-        self.output_label.setCursor(Qt.PointingHandCursor)
+        self.output_label.setCursor(Qt.CursorShape.PointingHandCursor)
         
         self.output_label.setStyleSheet(
             """
@@ -136,10 +138,51 @@ class IntegratedCADApp(QMainWindow):
         self.status.addWidget(self.output_label)
         
         # --------------------------------------------
+        # Move File Manager
+        # --------------------------------------------
+        self.move_manager = MoveFileManager(self.config)
+        
+        # 現在モード
+        self.move_mode_index = 1
+        
+        # ステータスバーラベル
+
+        self.move_label = QLabel()
+        
+        label = (
+            self.config
+            .get("move_of_file_1", {})
+            .get("label", "MOVE")
+        )
+        
+        self.move_label.setText(
+            f"ファイル移動 : {label}"
+        )
+        
+        self.move_label.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.move_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #00a3af;
+                color: white;
+                padding: 4px 12px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            """
+        )
+
+        self.status.addPermanentWidget(self.move_label)
+        
+        # クリックイベント
+        self.move_label.mousePressEvent = self.move_label_mouse_event
+        
+        # --------------------------------------------
         # Model Label
         # --------------------------------------------
         self.status_label = QLabel()
-        self.status_label.setCursor(Qt.PointingHandCursor)
+        self.status_label.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.status_label.setStyleSheet(
             """
@@ -164,6 +207,53 @@ class IntegratedCADApp(QMainWindow):
         self.update_mode_ui()
 
         self.setAcceptDrops(True)
+        
+    # MoveFileManager クリックイベント
+    def move_label_mouse_event(self, event):
+        
+        # --------------------------------------------
+        # RIGHT CLICK
+        # --------------------------------------------
+        if event.button() == Qt.RightButton:
+            
+            self.move_mode_index += 1
+            
+            if self.move_mode_index > 3:
+                
+                self.move_mode_index = 1
+                
+            key = (
+                f"move_of_file_"
+                f"{self.move_mode_index}"
+            )
+            
+            label = (
+                self.config.get(key, {}).get("label", "MOVE")
+            )
+            
+            self.move_label.setText(
+                f"ファイル移動 : {label}"
+            )
+        
+        # --------------------------------------------
+        # LEFT CLICK
+        # --------------------------------------------
+        elif event.button() == Qt.LeftButton:
+            
+            key = (
+                f"move_of_file_"
+                f"{self.move_mode_index}"
+            )
+            
+            success, msg = (
+                self.move_manager.execute(key)
+            )
+            
+            if success:
+                self.drop_label.setText(msg)
+                
+            else:
+                self.show_error(msg)
 
     # =====================================================
     # Mode Switch
