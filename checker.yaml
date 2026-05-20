@@ -36,6 +36,9 @@ move_of_file_1:
   out_of_folder: "C:\\CADFile"
   into_folder: "X:\\CADFile"
 
+  bg_color: "#00a3af"
+  str_color: "white"
+
   ignore:
     - "tool"
     - "readme.txt"
@@ -47,6 +50,9 @@ move_of_file_2:
   out_of_folder: "C:\\LaserFile"
   into_folder: "X:\\LaserFile"
 
+  bg_color: "#a1a46d"
+  str_color: "white"
+
   ignore:
     - "tool"
     - "readme.txt"
@@ -57,6 +63,9 @@ move_of_file_3:
 
   out_of_folder: "C:\\CutFile"
   into_folder: "X:\\CutFile"
+
+  bg_color: "#954e2a"
+  str_color: "white"
 
   ignore:
     - "tool"

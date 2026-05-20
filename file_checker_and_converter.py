@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QLabel,
     QMainWindow,
-    QStatusBar,
+    QMessageBox,
     QVBoxLayout,
     QWidget,
     QFileDialog,
@@ -36,7 +36,7 @@ class IntegratedCADApp(QMainWindow):
         # --------------------------------------------
         # YAML Load
         # --------------------------------------------
-        self.config = self.load_yaml(r"c:\checker.yaml")
+        self.config = self.load_yaml(r"C:\checker.yaml")
 
         self.threshold = self.config["threshold"]
 
@@ -149,29 +149,31 @@ class IntegratedCADApp(QMainWindow):
 
         self.move_label = QLabel()
         
-        label = (
-            self.config
-            .get("move_of_file_1", {})
-            .get("label", "MOVE")
-        )
+        self.update_move_label()
         
-        self.move_label.setText(
-            f"ファイル移動 : {label}"
-        )
+        # label = (
+        #     self.config
+        #     .get("move_of_file_1", {})
+        #     .get("label", "MOVE")
+        # )
+        
+        # self.move_label.setText(
+        #     f"ファイル移動 : {label}"
+        # )
         
         self.move_label.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.move_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #00a3af;
-                color: white;
-                padding: 4px 12px;
-                font-weight: bold;
-                border-radius: 4px;
-            }
-            """
-        )
+        # self.move_label.setStyleSheet(
+        #     """
+        #     QLabel {
+        #         background-color: #00a3af;
+        #         color: white;
+        #         padding: 4px 12px;
+        #         font-weight: bold;
+        #         border-radius: 4px;
+        #     }
+        #     """
+        # )
 
         self.status.addPermanentWidget(self.move_label)
         
@@ -222,24 +224,39 @@ class IntegratedCADApp(QMainWindow):
                 
                 self.move_mode_index = 1
                 
-            key = (
-                f"move_of_file_"
-                f"{self.move_mode_index}"
-            )
+            # key = (
+            #     f"move_of_file_"
+            #     f"{self.move_mode_index}"
+            # )
             
-            label = (
-                self.config.get(key, {}).get("label", "MOVE")
-            )
+            # label = (
+            #     self.config.get(key, {}).get("label", "MOVE")
+            # )
             
-            self.move_label.setText(
-                f"ファイル移動 : {label}"
-            )
+            # self.move_label.setText(
+            #     f"ファイル移動 : {label}"
+            # )
+            
+            self.update_move_label()
         
         # --------------------------------------------
         # LEFT CLICK
         # --------------------------------------------
         elif event.button() == Qt.LeftButton:
             
+            # 実行確認
+            result = QMessageBox.question(
+                self,
+                "確認",
+                "ファイル移動を実行しますか",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            
+            if result == QMessageBox.No:
+                return
+            
+            # 処理
             key = (
                 f"move_of_file_"
                 f"{self.move_mode_index}"
@@ -254,6 +271,54 @@ class IntegratedCADApp(QMainWindow):
                 
             else:
                 self.show_error(msg)
+                
+            # 終了メッセージ
+            success, msg = (self.move_manager.execute(key))
+
+            if success:
+                QMessageBox.information(
+                    self,
+                    "完了",
+                    msg,
+                )
+            
+            else:
+                QMessageBox.critical(
+                    self,
+                    "エラー",
+                    msg,
+                )
+    # =====================================================
+    # Move Label color
+    # =====================================================
+    def update_move_label(self):
+        
+        key = (
+                f"move_of_file_"
+                f"{self.move_mode_index}"
+            )
+        
+        move_config = self.config.get(key)
+        
+        label = move_config.get("label", "MOVE")
+        
+        bg = move_config.get("bg_color", "#00a3af")
+        
+        color = move_config.get("str_color", "white")
+        
+        self.move_label.setText(f"ファイル移動 : {label}")
+        
+        self.move_label.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {bg};
+                color: {color};
+                padding: 4px 12px;
+                font-weight: bold;
+                border-radius: 4px;
+            }}
+            """
+        )
 
     # =====================================================
     # Mode Switch
