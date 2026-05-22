@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QIcon
 from move_file_manager import MoveFileManager
+from notepad_history_cleaner import NotepadHistoryCleaner
 
 # =========================================================
 # Main Window
@@ -138,6 +139,35 @@ class IntegratedCADApp(QMainWindow):
         self.status.addWidget(self.output_label)
         
         # --------------------------------------------
+        # Notepad Cleaner
+        # --------------------------------------------
+        self.notepad_cleaner = NotepadHistoryCleaner()
+        
+        self.memo_label = QLabel("メモ帳履歴削除")
+
+        self.memo_label.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.memo_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #007bbb;
+                color: white;
+                padding: 4px 12px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+
+            QLabel:hover {
+                background-color: #1e50a2;
+            }
+            """
+        )
+        
+        self.status.addPermanentWidget(self.memo_label)
+        
+        self.memo_label.mousePressEvent = self.memo_label_mouse_event
+        
+        # --------------------------------------------
         # Move File Manager
         # --------------------------------------------
         self.move_manager = MoveFileManager(self.config)
@@ -151,29 +181,7 @@ class IntegratedCADApp(QMainWindow):
         
         self.update_move_label()
         
-        # label = (
-        #     self.config
-        #     .get("move_of_file_1", {})
-        #     .get("label", "MOVE")
-        # )
-        
-        # self.move_label.setText(
-        #     f"ファイル移動 : {label}"
-        # )
-        
         self.move_label.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        # self.move_label.setStyleSheet(
-        #     """
-        #     QLabel {
-        #         background-color: #00a3af;
-        #         color: white;
-        #         padding: 4px 12px;
-        #         font-weight: bold;
-        #         border-radius: 4px;
-        #     }
-        #     """
-        # )
 
         self.status.addPermanentWidget(self.move_label)
         
@@ -209,6 +217,53 @@ class IntegratedCADApp(QMainWindow):
         self.update_mode_ui()
 
         self.setAcceptDrops(True)
+    
+    # Notepad Cleaner クリックイベント
+    def memo_label_mouse_event(self, event):
+
+        if (
+            event.button()
+            != Qt.MouseButton.LeftButton
+        ):
+            return
+
+        result = QMessageBox.question(
+
+            self,
+
+            "確認",
+
+            "メモ帳履歴を削除しますか？\n\n""※ メモ帳は閉じてください",
+
+            QMessageBox.Yes
+            | QMessageBox.No,
+
+            QMessageBox.No,
+        )
+
+        if result == QMessageBox.No:
+
+            return
+
+        success, msg = (
+            self.notepad_cleaner.clear_history()
+        )
+
+        if success:
+
+            QMessageBox.information(
+                self,
+                "完了",
+                msg,
+            )
+
+        else:
+
+            QMessageBox.critical(
+                self,
+                "エラー",
+                msg,
+            )
         
     # MoveFileManager クリックイベント
     def move_label_mouse_event(self, event):
@@ -223,19 +278,6 @@ class IntegratedCADApp(QMainWindow):
             if self.move_mode_index > 3:
                 
                 self.move_mode_index = 1
-                
-            # key = (
-            #     f"move_of_file_"
-            #     f"{self.move_mode_index}"
-            # )
-            
-            # label = (
-            #     self.config.get(key, {}).get("label", "MOVE")
-            # )
-            
-            # self.move_label.setText(
-            #     f"ファイル移動 : {label}"
-            # )
             
             self.update_move_label()
         
@@ -243,6 +285,24 @@ class IntegratedCADApp(QMainWindow):
         # LEFT CLICK
         # --------------------------------------------
         elif event.button() == Qt.LeftButton:
+
+            # 処理
+            key = (
+                f"move_of_file_"
+                f"{self.move_mode_index}"
+            )
+            
+            count = self.move_manager.count_target_files(key)
+            
+            if count == 0:
+                
+                QMessageBox.information(
+                    self,
+                    "確認",
+                    "移動対象ファイルはありません",
+                )
+                
+                return
             
             # 実行確認
             result = QMessageBox.question(
@@ -256,23 +316,6 @@ class IntegratedCADApp(QMainWindow):
             if result == QMessageBox.No:
                 return
             
-            # 処理
-            key = (
-                f"move_of_file_"
-                f"{self.move_mode_index}"
-            )
-            
-            success, msg = (
-                self.move_manager.execute(key)
-            )
-            
-            if success:
-                self.drop_label.setText(msg)
-                
-            else:
-                self.show_error(msg)
-                
-            # 終了メッセージ
             success, msg = (self.move_manager.execute(key))
 
             if success:
@@ -288,6 +331,9 @@ class IntegratedCADApp(QMainWindow):
                     "エラー",
                     msg,
                 )
+            
+            self.update_move_label()
+            
     # =====================================================
     # Move Label color
     # =====================================================
@@ -306,7 +352,9 @@ class IntegratedCADApp(QMainWindow):
         
         color = move_config.get("str_color", "white")
         
-        self.move_label.setText(f"ファイル移動 : {label}")
+        count = self.move_manager.count_target_files(key)
+        
+        self.move_label.setText(f"ファイル移動 : {label} ({count})")
         
         self.move_label.setStyleSheet(
             f"""
@@ -1096,8 +1144,8 @@ class IntegratedCADApp(QMainWindow):
             self.drop_label.setStyleSheet(
                 """
                 QLabel {
-                    background-color: #4b1c1c;
-                    color: #ff8080;
+                    background-color: #6c2c2f;
+                    color: #ee827c;
                     border: 2px solid red;
                     font-weight: bold;
                     border-radius: 6px;
@@ -1113,9 +1161,9 @@ class IntegratedCADApp(QMainWindow):
             self.drop_label.setStyleSheet(
                 """
                 QLabel {
-                    background-color: #1c3b1c;
-                    color: #90ee90;
-                    border: 2px solid green;
+                    background-color: #274a78;
+                    color: #a0d8ef;
+                    border: 2px solid #0095d9;
                     font-weight: bold;
                     border-radius: 6px;
                 }
@@ -1166,9 +1214,9 @@ class IntegratedCADApp(QMainWindow):
             self.drop_label.setStyleSheet(
                 """
                 QLabel {
-                    background-color: #1f3b5c;
-                    color: #8ecfff;
-                    border: 2px solid #007acc;
+                    background-color: #005243;
+                    color: #98d98e;
+                    border: 2px solid green;
                     font-weight: bold;
                     border-radius: 6px;
                 }
@@ -1186,9 +1234,9 @@ class IntegratedCADApp(QMainWindow):
             self.drop_label.setStyleSheet(
                 """
                 QLabel {
-                    background-color: #1c3b1c;
-                    color: #90ee90;
-                    border: 2px solid green;
+                    background-color: #274a78;
+                    color: #a0d8ef;
+                    border: 2px solid #0095d9;
                     font-weight: bold;
                     border-radius: 6px;
                 }
@@ -1211,8 +1259,8 @@ class IntegratedCADApp(QMainWindow):
         self.drop_label.setStyleSheet(
             """
             QLabel {
-                background-color: #4b1c1c;
-                color: #ff8080;
+                background-color: #6c2c2f;
+                color: #ee827c;
                 border: 2px solid red;
                 font-weight: bold;
                 border-radius: 6px;

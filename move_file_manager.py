@@ -11,6 +11,49 @@ class MoveFileManager:
     # =====================================================
     # EXECUTE
     # =====================================================
+    def count_target_files(self, key):
+        
+        move_config = self.config.get(key)
+        
+        if not move_config:
+            return 0
+        
+        out_folder = move_config.get(
+            "out_of_folder"
+        )
+        
+        ignore_list = move_config.get(
+            "ignore",
+            [],
+        )
+        
+        if not os.path.exists(out_folder):
+            return 0
+        
+        count = 0
+        
+        for name in os.listdir(out_folder):
+            
+            src_path = os.path.join(
+                out_folder,
+                name,
+            )
+            
+            # IGNORE
+            if name in ignore_list:
+                continue
+            
+            # IGNORE FOLDER (フォルダを移動しない設定)
+            # if os.path.isdir(src_path):
+            #     continue
+            
+            count += 1
+            
+        return count
+
+    # =====================================================
+    # EXECUTE
+    # =====================================================
     def execute(self, key):
 
         move_config = self.config.get(key)
@@ -60,9 +103,9 @@ class MoveFileManager:
             # ---------------------------------------------
             # FOLDER IGNORE
             # ---------------------------------------------
-            if os.path.isdir(src_path):
+            # if os.path.isdir(src_path):
 
-                continue
+            #     continue
 
             dst_path = os.path.join(
                 into_folder,

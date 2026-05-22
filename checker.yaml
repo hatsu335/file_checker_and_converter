@@ -33,8 +33,8 @@ mode_label_eps: "EPS変換"
 move_of_file_1:
   label: "CAD"
 
-  out_of_folder: "C:\\CADFile"
-  into_folder: "X:\\CADFile"
+  out_of_folder: "D:\\CAD_start"
+  into_folder: "D:\\CAD_end"
 
   bg_color: "#00a3af"
   str_color: "white"
