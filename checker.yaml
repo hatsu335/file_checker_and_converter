@@ -31,7 +31,7 @@ mode_label_eps: "EPS変換"
 
 # ファイル移動設定
 move_of_file_1:
-  label: "CAD"
+  label: "CADフォルダへ"
 
   out_of_folder: "D:\\CAD_start"
   into_folder: "D:\\CAD_end"
@@ -45,7 +45,7 @@ move_of_file_1:
     - "template.sx"
 
 move_of_file_2:
-  label: "LASER"
+  label: "LASERフォルダへ"
 
   out_of_folder: "C:\\LaserFile"
   into_folder: "X:\\LaserFile"
@@ -59,7 +59,7 @@ move_of_file_2:
     - "template.dat"
 
 move_of_file_3:
-  label: "CUT"
+  label: "CUTフォルダへ"
 
   out_of_folder: "C:\\CutFile"
   into_folder: "X:\\CutFile"
