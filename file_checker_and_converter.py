@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.patches import Arc
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -185,8 +185,14 @@ class IntegratedCADApp(QMainWindow):
 
         self.status.addPermanentWidget(self.move_label)
         
-        # クリックイベント
+        # ワンクリックイベント
         self.move_label.mousePressEvent = self.move_label_mouse_event
+        
+        # ダブルクリックイベント
+        self.move_label.mouseDoubleClickEvent = self.move_label_double_click_event
+        
+        # ワンクリック発火遅延用
+        self.move_double_click = False
         
         # --------------------------------------------
         # Model Label
@@ -235,13 +241,13 @@ class IntegratedCADApp(QMainWindow):
 
             "メモ帳履歴を削除しますか？\n\n""※ メモ帳は閉じてください",
 
-            QMessageBox.Yes
-            | QMessageBox.No,
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
 
-            QMessageBox.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if result == QMessageBox.No:
+        if result == QMessageBox.StandardButton.No:
 
             return
 
@@ -265,13 +271,13 @@ class IntegratedCADApp(QMainWindow):
                 msg,
             )
         
-    # MoveFileManager クリックイベント
+    # MoveFileManager ワンクリックイベント
     def move_label_mouse_event(self, event):
         
         # --------------------------------------------
         # RIGHT CLICK
         # --------------------------------------------
-        if event.button() == Qt.RightButton:
+        if event.button() == Qt.MouseButton.RightButton:
             
             self.move_mode_index += 1
             
@@ -284,55 +290,99 @@ class IntegratedCADApp(QMainWindow):
         # --------------------------------------------
         # LEFT CLICK
         # --------------------------------------------
-        elif event.button() == Qt.LeftButton:
-
-            # 処理
-            key = (
-                f"move_of_file_"
-                f"{self.move_mode_index}"
+        elif event.button() == Qt.MouseButton.LeftButton:
+            
+            self.move_double_click = False
+            
+            QTimer.singleShot(
+                QApplication.doubleClickInterval(),
+                lambda: self.execute_move_click()
             )
+        
+    # LEFT CLICK 処理
+    def execute_move_click(self):
+        
+        if self.move_double_click:
             
-            count = self.move_manager.count_target_files(key)
+            return
+
+        # 処理
+        key = (
+            f"move_of_file_"
+            f"{self.move_mode_index}"
+        )
+        
+        count = self.move_manager.count_target_files(key)
+        
+        if count == 0:
             
-            if count == 0:
-                
-                QMessageBox.information(
-                    self,
-                    "確認",
-                    "移動対象ファイルはありません",
-                )
-                
-                return
-            
-            # 実行確認
-            result = QMessageBox.question(
+            QMessageBox.information(
                 self,
                 "確認",
-                "ファイル移動を実行しますか",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                "移動対象ファイルはありません",
             )
             
-            if result == QMessageBox.No:
+            return
+        
+        # 実行確認
+        result = QMessageBox.question(
+            self,
+            "確認",
+            "ファイル移動を実行しますか",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        
+        if result == QMessageBox.StandardButton.No:
+            return
+        
+        success, msg = (self.move_manager.execute(key))
+
+        if success:
+            QMessageBox.information(
+                self,
+                "完了",
+                msg,
+            )
+        
+        else:
+            QMessageBox.critical(
+                self,
+                "エラー",
+                msg,
+            )
+        
+        self.update_move_label()
+    
+    # MoveFileManager ダブルクリックイベント
+    def move_label_double_click_event(self, event):
+        
+        self.move_double_click = True
+        
+        if event.button() != Qt.MouseButton.LeftButton:
+            
+            return
+        
+        try:
+            key = (f"move_of_file_"f"{self.move_mode_index}")
+            
+            move_config = self.config.get(key, {},)
+            
+            out_folder = move_config.get("out_of_folder", "",)
+            
+            # EXIST CHECK
+            if not os.path.exists(out_folder):
+                
+                QMessageBox.warning(self, "フォルダエラー", ("移動元フォルダが存在しません\n\n"f"{out_folder}"),)
+
                 return
             
-            success, msg = (self.move_manager.execute(key))
-
-            if success:
-                QMessageBox.information(
-                    self,
-                    "完了",
-                    msg,
-                )
+            # OPEN FOLDER
+            os.startfile(out_folder)
+        
+        except Exception as e:
             
-            else:
-                QMessageBox.critical(
-                    self,
-                    "エラー",
-                    msg,
-                )
-            
-            self.update_move_label()
+            QMessageBox.critical(self, "エラー", str(e),)
             
     # =====================================================
     # Move Label color
