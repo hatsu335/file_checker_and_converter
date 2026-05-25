@@ -43,18 +43,11 @@ class MoveFileManager:
             if name in ignore_list:
                 continue
             
-            # IGNORE FOLDER (フォルダを移動しない設定)
-            # if os.path.isdir(src_path):
-            #     continue
-            
             count += 1
             
         return count
-
-    # =====================================================
-    # EXECUTE
-    # =====================================================
-    def execute(self, key):
+    
+    def execute(self, key, overwrite_callback=None):
 
         move_config = self.config.get(key)
 
@@ -79,19 +72,18 @@ class MoveFileManager:
 
             return False, "移動元フォルダが存在しません"
 
-        os.makedirs(into_folder, exist_ok=True)
+        os.makedirs(
+            into_folder,
+            exist_ok=True,
+        )
 
         moved_count = 0
+        skip_count = 0
 
         # =================================================
         # FILE LOOP
         # =================================================
         for name in os.listdir(out_folder):
-
-            src_path = os.path.join(
-                out_folder,
-                name,
-            )
 
             # ---------------------------------------------
             # IGNORE
@@ -100,12 +92,10 @@ class MoveFileManager:
 
                 continue
 
-            # ---------------------------------------------
-            # FOLDER IGNORE
-            # ---------------------------------------------
-            # if os.path.isdir(src_path):
-
-            #     continue
+            src_path = os.path.join(
+                out_folder,
+                name,
+            )
 
             dst_path = os.path.join(
                 into_folder,
@@ -114,6 +104,39 @@ class MoveFileManager:
 
             try:
 
+                # =========================================
+                # SAME NAME CHECK
+                # =========================================
+                if os.path.exists(dst_path):
+
+                    overwrite = False
+
+                    if overwrite_callback:
+
+                        overwrite = overwrite_callback(
+                            name,
+                            src_path,
+                            dst_path,
+                        )
+
+                    # NO
+                    if not overwrite:
+
+                        skip_count += 1
+                        continue
+
+                    # YES
+                    if os.path.isfile(dst_path):
+
+                        os.remove(dst_path)
+
+                    elif os.path.isdir(dst_path):
+
+                        shutil.rmtree(dst_path)
+
+                # =========================================
+                # MOVE
+                # =========================================
                 shutil.move(
                     src_path,
                     dst_path,
@@ -125,10 +148,17 @@ class MoveFileManager:
 
                 return (
                     False,
-                    f"移動失敗 : {name} / {str(e)}"
+                    f"移動失敗 : {name}\n{str(e)}"
                 )
 
-        return (
-            True,
+        msg = (
             f"{moved_count} 件移動しました"
         )
+
+        if skip_count > 0:
+
+            msg += (
+                f"\n{skip_count} 件スキップ"
+            )
+
+        return True, msg

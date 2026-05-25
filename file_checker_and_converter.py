@@ -4,7 +4,7 @@ import os
 import re
 import math
 import subprocess
-
+import datetime
 import ezdxf
 import yaml
 
@@ -336,7 +336,8 @@ class IntegratedCADApp(QMainWindow):
         if result == QMessageBox.StandardButton.No:
             return
         
-        success, msg = (self.move_manager.execute(key))
+        success, msg = self.move_manager.execute(
+            key, overwrite_callback=self.confirm_overwrite)
 
         if success:
             QMessageBox.information(
@@ -353,6 +354,102 @@ class IntegratedCADApp(QMainWindow):
             )
         
         self.update_move_label()
+        
+    # =====================================================
+    # OVERWRITE CHECK
+    # =====================================================
+    def confirm_overwrite(
+
+        self,
+
+        file_name,
+
+        src_path,
+
+        dst_path,
+    ):
+
+        # -----------------------------------------
+        # UPDATE TIME
+        # -----------------------------------------
+        src_time = datetime.datetime.fromtimestamp(
+            os.path.getmtime(src_path)
+        )
+
+        dst_time = datetime.datetime.fromtimestamp(
+            os.path.getmtime(dst_path)
+        )
+
+        # -----------------------------------------
+        # FORMAT
+        # -----------------------------------------
+        src_time_str = src_time.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        dst_time_str = dst_time.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        # -----------------------------------------
+        # NEWER CHECK
+        # -----------------------------------------
+        if src_time > dst_time:
+
+            compare_msg = (
+                "※ 移動元ファイルの方が新しいです"
+            )
+
+        elif src_time < dst_time:
+
+            compare_msg = (
+                "※ 移動先ファイルの方が新しいです"
+            )
+
+        else:
+
+            compare_msg = (
+                "※ 更新日時は同じです"
+            )
+
+        # -----------------------------------------
+        # MESSAGE
+        # -----------------------------------------
+        msg = (
+
+            "同名ファイルが存在します\n\n"
+
+            f"{file_name}\n\n"
+
+            "【移動元 更新日時】\n"
+            f"{src_time_str}\n\n"
+
+            "【移動先 更新日時】\n"
+            f"{dst_time_str}\n\n"
+
+            f"{compare_msg}\n\n"
+
+            "上書きしますか？"
+        )
+
+        result = QMessageBox.question(
+
+            self,
+
+            "上書き確認",
+
+            msg,
+
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+
+            QMessageBox.StandardButton.No,
+        )
+
+        return (
+            result
+            == QMessageBox.StandardButton.Yes
+        )
     
     # MoveFileManager ダブルクリックイベント
     def move_label_double_click_event(self, event):
