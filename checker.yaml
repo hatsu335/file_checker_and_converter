@@ -28,6 +28,22 @@ gcode:
 # 名称
 mode_label_rcheck: "Rチェック"
 mode_label_eps: "EPS変換"
+mode_label_dxf_dxf: "DXFダウングレード"
+mode_label_dxf_pdf: "DXF → PDF"
+mode_label_eps_pdf: "EPS → PDF"
+mode_label_ai_dxf: "AI → DXF"
+
+# DXF ダウングレード形式
+# R12 / R14（Inkscape）または ACAD2000 / ACAD2004 / ACAD2007 / ACAD2010 / ACAD2013 / ACAD2018（ODA File Converter）
+dxf_downgrade_format: "R12"
+
+# ODA File Converter（ACAD2000 等のダウングレード用・要インストール）
+# oda_file_converter: "C:\\Program Files\\ODA\\ODAFileConverter 26.12.0\\ODAFileConverter.exe"
+# AI → DXF 出力形式（R12 / R14）
+ai_dxf_format: "R12"
+
+# PDF margin
+pdf_margin: "--export-margin=20"
 
 # ファイル移動設定
 move_of_file_1:

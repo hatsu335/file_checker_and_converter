@@ -1,0 +1,9 @@
+---
+description: 
+alwaysApply: true
+---
+
+# プロジェクトルール
+- 日本語で回答してください
+- Pythonを使用してください
+- file_checker_specification.md に書かれた仕様を守ってください

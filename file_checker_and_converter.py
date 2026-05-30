@@ -26,6 +26,11 @@ from PySide6.QtGui import QIcon
 from move_file_manager import MoveFileManager
 from notepad_history_cleaner import NotepadHistoryCleaner
 
+INKSCAPE_DXF_FORMATS = {
+    "R12": "org.inkscape.output.dxf_twelve",
+    "R14": "org.ekips.output.dxf_outlines",
+}
+
 # =========================================================
 # Main Window
 # =========================================================
@@ -50,11 +55,108 @@ class IntegratedCADApp(QMainWindow):
         self.mode_label_rcheck = self.config.get("mode_label_rcheck", "R-CHECKER")
         
         self.mode_label_eps = self.config.get("mode_label_eps", "DXF → EPS CONVERTER")
+
+        self.mode_label_dxf_dxf = self.config.get("mode_label_dxf_dxf", "DXF → DXF")
+
+        self.mode_label_dxf_pdf = self.config.get("mode_label_dxf_pdf", "DXF → PDF")
+
+        self.mode_label_eps_pdf = self.config.get("mode_label_eps_pdf", "EPS → PDF")
+
+        self.mode_label_ai_dxf = self.config.get("mode_label_ai_dxf", "AI → DXF")
+
+        self.modes = [
+            self.mode_label_rcheck,
+            self.mode_label_eps,
+            self.mode_label_dxf_dxf,
+            self.mode_label_dxf_pdf,
+            self.mode_label_eps_pdf,
+            self.mode_label_ai_dxf,
+        ]
+
+        self.mode_styles = {
+            self.mode_label_rcheck: """
+                QLabel {
+                    background-color: #007bbb;
+                    color: white;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+            self.mode_label_eps: """
+                QLabel {
+                    background-color: #e9546b;
+                    color: black;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+            self.mode_label_dxf_dxf: """
+                QLabel {
+                    background-color: #f39800;
+                    color: black;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+            self.mode_label_dxf_pdf: """
+                QLabel {
+                    background-color: #674598;
+                    color: white;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+            self.mode_label_eps_pdf: """
+                QLabel {
+                    background-color: #00a497;
+                    color: white;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+            self.mode_label_ai_dxf: """
+                QLabel {
+                    background-color: #c75c7c;
+                    color: white;
+                    padding: 4px 12px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """,
+        }
+
+        self.dxf_downgrade_format = self.config.get(
+            "dxf_downgrade_format",
+            self.config.get("dxf_target_version", "ACAD2000"),
+        ).upper()
+
+        self.dxf_downgrade_inkscape_extension = INKSCAPE_DXF_FORMATS.get(
+            self.dxf_downgrade_format,
+        )
+
+        self.ai_dxf_format = self.config.get(
+            "ai_dxf_format",
+            "R14",
+        ).upper()
+
+        self.ai_dxf_extension = INKSCAPE_DXF_FORMATS.get(
+            self.ai_dxf_format,
+            INKSCAPE_DXF_FORMATS["R14"],
+        )
         
         # =========================================================
         # Inkscape Path
         # =========================================================
         self.INKSCAPE_PATH = self.config["inkscape"]
+
+        oda_path = self.config.get("oda_file_converter")
+        if oda_path:
+            ezdxf.options.set("odafc-addon", "win_exec_path", oda_path)
 
         # --------------------------------------------
         # Current Mode
@@ -519,64 +621,96 @@ class IntegratedCADApp(QMainWindow):
     # Mode Switch
     # =====================================================
     def toggle_mode(self, event):
-        
-        if self.current_mode == self.mode_label_rcheck:
-            self.current_mode = self.mode_label_eps
-            self.status_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #e9546b;
-                    color: black;
-                    padding: 4px 12px;
-                    font-weight: bold;
-                    border-radius: 4px;
-                }
-                """
-            )
-        else:
-            self.current_mode = self.mode_label_rcheck
-            self.status_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #007bbb;
-                    color: white;
-                    padding: 4px 12px;
-                    font-weight: bold;
-                    border-radius: 4px;
-                }
-                """
-            )
-                
+
+        current_index = self.modes.index(self.current_mode)
+        next_index = (current_index + 1) % len(self.modes)
+        self.current_mode = self.modes[next_index]
+        self.status_label.setStyleSheet(
+            self.mode_styles[self.current_mode]
+        )
         self.update_mode_ui()
+
+    def _output_dir_label(self):
+
+        if self.current_mode == self.mode_label_eps:
+            return "EPS保存先"
+
+        if self.current_mode in (
+            self.mode_label_dxf_pdf,
+            self.mode_label_eps_pdf,
+        ):
+            return "PDF保存先"
+
+        if self.current_mode in (
+            self.mode_label_dxf_dxf,
+            self.mode_label_ai_dxf,
+        ):
+            return "DXF保存先"
+
+        return "出力先"
 
     def update_mode_ui(self):
 
         self.status_label.setText(f"モード : {self.current_mode}")
-        
-        self.output_label.setText(f"EPS保存先 : {self.output_dir}")
 
-        if self.current_mode == self.mode_label_rcheck:
+        self.output_label.setText(
+            f"{self._output_dir_label()} : {self.output_dir}"
+        )
 
-            self.drop_label.setText(
+        drop_messages = {
+            self.mode_label_rcheck: (
                 "DXF または DAT をこの画面にドラッグ＆ドロップしてください（Ｒチェック）"
-            )
-
-        else:
-
-            self.drop_label.setText(
+            ),
+            self.mode_label_eps: (
                 "DXF をこの画面にドラッグ＆ドロップしてください（EPS自動変換）"
-            )
+            ),
+            self.mode_label_dxf_dxf: (
+                f"DXF をこの画面にドラッグ＆ドロップしてください（{self.dxf_downgrade_format} へ変換）"
+            ),
+            self.mode_label_dxf_pdf: (
+                "DXF をこの画面にドラッグ＆ドロップしてください（PDF自動変換）"
+            ),
+            self.mode_label_eps_pdf: (
+                "EPS をこの画面にドラッグ＆ドロップしてください（PDF自動変換）"
+            ),
+            self.mode_label_ai_dxf: (
+                f"AI をこの画面にドラッグ＆ドロップしてください（DXF {self.ai_dxf_format} 自動変換）"
+            ),
+        }
+
+        self.drop_label.setText(
+            drop_messages[self.current_mode]
+        )
             
     # =====================================================
     # Output Directory Select
     # =====================================================
     def select_output_directory(self, event):
+
+        dialog_titles = {
+            self.mode_label_eps: "EPS 出力先を選択",
+            self.mode_label_dxf_dxf: "DXF 出力先を選択",
+            self.mode_label_dxf_pdf: "PDF 出力先を選択",
+            self.mode_label_eps_pdf: "PDF 出力先を選択",
+            self.mode_label_ai_dxf: "DXF 出力先を選択",
+        }
+
+        title = dialog_titles.get(
+            self.current_mode,
+            "出力先を選択",
+        )
         
-        folder = QFileDialog.getExistingDirectory(self, "EPS 出力先を選択", self.output_dir)
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            title,
+            self.output_dir,
+        )
         
         if folder:
             self.output_dir = folder
-            self.output_label.setText(f"EPS保存先 : {self.output_dir}")
+            self.output_label.setText(
+                f"{self._output_dir_label()} : {self.output_dir}"
+            )
 
     # =====================================================
     # Drag & Drop
@@ -607,13 +741,30 @@ class IntegratedCADApp(QMainWindow):
                 elif ext == ".dat":
                     self.process_gcode(file_path)
 
-            # ----------------------------------------
-            # EPS Convert Mode
-            # ----------------------------------------
-            else:
+            elif self.current_mode == self.mode_label_eps:
 
                 if ext == ".dxf":
                     self.convert_dxf_to_eps(file_path)
+
+            elif self.current_mode == self.mode_label_dxf_dxf:
+
+                if ext == ".dxf":
+                    self.convert_dxf_to_dxf(file_path)
+
+            elif self.current_mode == self.mode_label_dxf_pdf:
+
+                if ext == ".dxf":
+                    self.convert_dxf_to_pdf(file_path)
+
+            elif self.current_mode == self.mode_label_eps_pdf:
+
+                if ext == ".eps":
+                    self.convert_eps_to_pdf(file_path)
+
+            elif self.current_mode == self.mode_label_ai_dxf:
+
+                if ext == ".ai":
+                    self.convert_ai_to_dxf(file_path)
 
             break
 
@@ -1320,83 +1471,231 @@ class IntegratedCADApp(QMainWindow):
         self.drop_label.setText(title)
 
     # =====================================================
+    # Convert Helpers
+    # =====================================================
+    def _make_output_path(self, input_path, output_ext):
+
+        base_name = os.path.splitext(
+            os.path.basename(input_path)
+        )[0]
+
+        return os.path.join(
+            self.output_dir,
+            f"{base_name}{output_ext}",
+        )
+
+    def _show_converting(self, message):
+
+        self.drop_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #005243;
+                color: #98d98e;
+                border: 2px solid green;
+                font-weight: bold;
+                border-radius: 6px;
+            }
+            """
+        )
+        self.drop_label.setText(message)
+        QApplication.processEvents()
+
+    def _show_convert_success(self, message):
+
+        self.drop_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #274a78;
+                color: #a0d8ef;
+                border: 2px solid #0095d9;
+                font-weight: bold;
+                border-radius: 6px;
+            }
+            """
+        )
+        self.drop_label.setText(message)
+
+    def _run_inkscape_export(
+        self,
+        input_path,
+        output_path,
+        export_type,
+        extra_options=None,
+        processing_text="変換中...",
+        error_prefix="変換失敗",
+    ):
+
+        if not os.path.exists(self.INKSCAPE_PATH):
+            self.show_error("Inkscape が見つかりません")
+            return False
+
+        cmd = [
+            self.INKSCAPE_PATH,
+            input_path,
+            f"--export-type={export_type}",
+            f"--export-filename={output_path}",
+        ]
+
+        if extra_options:
+            cmd.extend(extra_options)
+
+        try:
+            self._show_converting(processing_text)
+            subprocess.run(cmd, check=True)
+            return True
+
+        except Exception as e:
+            self.show_error(f"{error_prefix} : {str(e)}")
+            return False
+
+    # =====================================================
     # EPS Convert
     # =====================================================
     def convert_dxf_to_eps(self, dxf_path):
 
-        if not os.path.exists(self.INKSCAPE_PATH):
+        eps_path = self._make_output_path(dxf_path, ".eps")
 
-            self.show_error("Inkscape が見つかりません")
-            return
-
-        
-        # -----------------------------
-        # 出力ファイル名生成
-        # -----------------------------
-        base_name = os.path.splitext(
-            os.path.basename(dxf_path)
-        )[0]
-        
-        eps_path = os.path.join(
-            self.output_dir,
-            f"{base_name}.eps"
-        )
-
-        # -----------------------------
-        # Inkscape Command
-        # -----------------------------    
-        
-        cmd = [
-            self.INKSCAPE_PATH,
-            dxf_path,
-            "--export-type=eps",
-            f"--export-filename={eps_path}",
-            "--export-area-drawing", # DXF の全範囲を出力
-            "--export-margin=20",
-            self.config["eps_ver"], # EPS のバージョン(yaml で setting)
+        extra_options = [
+            "--export-area-drawing",
+            self.config.get("eps_margin", "--export-margin=20"),
+            self.config["eps_ver"],
         ]
 
-        try:
-
-            self.drop_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #005243;
-                    color: #98d98e;
-                    border: 2px solid green;
-                    font-weight: bold;
-                    border-radius: 6px;
-                }
-                """
-            )
-
-            self.drop_label.setText(
-                "EPS変換中..."
-            )
-
-            QApplication.processEvents()
-
-            subprocess.run(cmd, check=True)
-
-            self.drop_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #274a78;
-                    color: #a0d8ef;
-                    border: 2px solid #0095d9;
-                    font-weight: bold;
-                    border-radius: 6px;
-                }
-                """
-            )
-
-            self.drop_label.setText(
+        if self._run_inkscape_export(
+            dxf_path,
+            eps_path,
+            "eps",
+            extra_options=extra_options,
+            processing_text="EPS変換中...",
+            error_prefix="EPS変換失敗",
+        ):
+            self._show_convert_success(
                 f"EPS変換完了 : {os.path.basename(eps_path)}"
             )
 
-        except Exception as e:
+    # =====================================================
+    # DXF Convert
+    # =====================================================
+    def _export_dxf_via_inkscape(
+        self,
+        input_path,
+        output_path,
+        format_label,
+        extension,
+    ):
 
-            self.show_error(f"EPS変換失敗 : {str(e)}")
+        extra_options = [
+            "--export-area-drawing",
+            f"--export-extension={extension}",
+        ]
+
+        if self._run_inkscape_export(
+            input_path,
+            output_path,
+            "dxf",
+            extra_options=extra_options,
+            processing_text=f"DXF変換中... ({format_label})",
+            error_prefix="DXF変換失敗",
+        ):
+            self._show_convert_success(
+                f"DXF変換完了 : {os.path.basename(output_path)}"
+            )
+
+    def _convert_dxf_via_odafc(self, dxf_path, output_path):
+
+        from ezdxf.addons import odafc
+
+        if not odafc.is_installed():
+            self.show_error(
+                "ACAD2000 等形式への変換には ODA File Converter が必要です。"
+                "checker.yaml に oda_file_converter を設定するか、"
+                "dxf_downgrade_format を R12 / R14 に変更してください。"
+            )
+            return
+
+        try:
+            self._show_converting(
+                f"DXF変換中... ({self.dxf_downgrade_format})"
+            )
+
+            odafc.convert(
+                dxf_path,
+                output_path,
+                version=self.dxf_downgrade_format,
+                replace=True,
+            )
+
+            self._show_convert_success(
+                f"DXF変換完了 : {os.path.basename(output_path)}"
+            )
+
+        except Exception as e:
+            self.show_error(f"DXF変換失敗 : {str(e)}")
+
+    def convert_dxf_to_dxf(self, dxf_path):
+
+        output_path = self._make_output_path(dxf_path, ".dxf")
+
+        if self.dxf_downgrade_inkscape_extension:
+            self._export_dxf_via_inkscape(
+                dxf_path,
+                output_path,
+                self.dxf_downgrade_format,
+                self.dxf_downgrade_inkscape_extension,
+            )
+            return
+
+        self._convert_dxf_via_odafc(dxf_path, output_path)
+
+    # =====================================================
+    # PDF Convert
+    # =====================================================
+    def convert_dxf_to_pdf(self, dxf_path):
+
+        pdf_path = self._make_output_path(dxf_path, ".pdf")
+
+        extra_options = [
+            "--export-area-drawing",
+            self.config.get("pdf_margin", "--export-margin=20"),
+        ]
+
+        if self._run_inkscape_export(
+            dxf_path,
+            pdf_path,
+            "pdf",
+            extra_options=extra_options,
+            processing_text="PDF変換中...",
+            error_prefix="PDF変換失敗",
+        ):
+            self._show_convert_success(
+                f"PDF変換完了 : {os.path.basename(pdf_path)}"
+            )
+
+    def convert_eps_to_pdf(self, eps_path):
+
+        pdf_path = self._make_output_path(eps_path, ".pdf")
+
+        if self._run_inkscape_export(
+            eps_path,
+            pdf_path,
+            "pdf",
+            processing_text="PDF変換中...",
+            error_prefix="PDF変換失敗",
+        ):
+            self._show_convert_success(
+                f"PDF変換完了 : {os.path.basename(pdf_path)}"
+            )
+
+    def convert_ai_to_dxf(self, ai_path):
+
+        dxf_path = self._make_output_path(ai_path, ".dxf")
+
+        self._export_dxf_via_inkscape(
+            ai_path,
+            dxf_path,
+            self.ai_dxf_format,
+            self.ai_dxf_extension,
+        )
 
     # =====================================================
     # Error Display
