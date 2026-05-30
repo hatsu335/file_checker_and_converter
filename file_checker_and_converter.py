@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon
 from move_file_manager import MoveFileManager
 from notepad_history_cleaner import NotepadHistoryCleaner
+from logging_setup import logger
 
 INKSCAPE_DXF_FORMATS = {
     "R12": "org.inkscape.output.dxf_twelve",
@@ -112,8 +113,8 @@ class IntegratedCADApp(QMainWindow):
             """,
             self.mode_label_eps_pdf: """
                 QLabel {
-                    background-color: #00a497;
-                    color: white;
+                    background-color: #c0c6c9;
+                    color: black;
                     padding: 4px 12px;
                     font-weight: bold;
                     border-radius: 4px;
@@ -121,8 +122,8 @@ class IntegratedCADApp(QMainWindow):
             """,
             self.mode_label_ai_dxf: """
                 QLabel {
-                    background-color: #c75c7c;
-                    color: white;
+                    background-color: #ffea00;
+                    color: black;
                     padding: 4px 12px;
                     font-weight: bold;
                     border-radius: 4px;
@@ -325,6 +326,13 @@ class IntegratedCADApp(QMainWindow):
         self.update_mode_ui()
 
         self.setAcceptDrops(True)
+
+        logger.info(
+            "アプリ初期化完了: mode=%s output_dir=%s dxf_downgrade=%s",
+            self.current_mode,
+            self.output_dir,
+            self.dxf_downgrade_format,
+        )
     
     # Notepad Cleaner クリックイベント
     def memo_label_mouse_event(self, event):
@@ -351,13 +359,17 @@ class IntegratedCADApp(QMainWindow):
 
         if result == QMessageBox.StandardButton.No:
 
+            logger.info("メモ帳履歴削除: ユーザーがキャンセル")
             return
 
+        logger.info("メモ帳履歴削除: 実行開始")
         success, msg = (
             self.notepad_cleaner.clear_history()
         )
 
         if success:
+
+            logger.info("メモ帳履歴削除: 成功 %s", msg)
 
             QMessageBox.information(
                 self,
@@ -367,6 +379,7 @@ class IntegratedCADApp(QMainWindow):
 
         else:
 
+            logger.error("メモ帳履歴削除: 失敗 %s", msg)
             QMessageBox.critical(
                 self,
                 "エラー",
@@ -380,12 +393,19 @@ class IntegratedCADApp(QMainWindow):
         # RIGHT CLICK
         # --------------------------------------------
         if event.button() == Qt.MouseButton.RightButton:
-            
+
+            old_index = self.move_mode_index
             self.move_mode_index += 1
             
             if self.move_mode_index > 3:
                 
                 self.move_mode_index = 1
+
+            logger.info(
+                "ファイル移動モード切替: %s -> %s",
+                old_index,
+                self.move_mode_index,
+            )
             
             self.update_move_label()
         
@@ -415,6 +435,12 @@ class IntegratedCADApp(QMainWindow):
         )
         
         count = self.move_manager.count_target_files(key)
+
+        logger.info(
+            "ファイル移動: 対象確認 key=%s count=%s",
+            key,
+            count,
+        )
         
         if count == 0:
             
@@ -436,12 +462,15 @@ class IntegratedCADApp(QMainWindow):
         )
         
         if result == QMessageBox.StandardButton.No:
+            logger.info("ファイル移動: ユーザーがキャンセル")
             return
-        
+
+        logger.info("ファイル移動: 実行開始 key=%s", key)
         success, msg = self.move_manager.execute(
             key, overwrite_callback=self.confirm_overwrite)
 
         if success:
+            logger.info("ファイル移動: 成功 %s", msg)
             QMessageBox.information(
                 self,
                 "完了",
@@ -449,6 +478,7 @@ class IntegratedCADApp(QMainWindow):
             )
         
         else:
+            logger.error("ファイル移動: 失敗 %s", msg)
             QMessageBox.critical(
                 self,
                 "エラー",
@@ -548,10 +578,18 @@ class IntegratedCADApp(QMainWindow):
             QMessageBox.StandardButton.No,
         )
 
-        return (
+        overwrite = (
             result
             == QMessageBox.StandardButton.Yes
         )
+
+        logger.info(
+            "上書き確認: file=%s overwrite=%s",
+            file_name,
+            overwrite,
+        )
+
+        return overwrite
     
     # MoveFileManager ダブルクリックイベント
     def move_label_double_click_event(self, event):
@@ -577,10 +615,12 @@ class IntegratedCADApp(QMainWindow):
                 return
             
             # OPEN FOLDER
+            logger.info("移動元フォルダを開く: %s", out_folder)
             os.startfile(out_folder)
         
         except Exception as e:
-            
+
+            logger.exception("移動元フォルダを開く際にエラー")
             QMessageBox.critical(self, "エラー", str(e),)
             
     # =====================================================
@@ -624,7 +664,13 @@ class IntegratedCADApp(QMainWindow):
 
         current_index = self.modes.index(self.current_mode)
         next_index = (current_index + 1) % len(self.modes)
+        previous_mode = self.current_mode
         self.current_mode = self.modes[next_index]
+        logger.info(
+            "モード切替: %s -> %s",
+            previous_mode,
+            self.current_mode,
+        )
         self.status_label.setStyleSheet(
             self.mode_styles[self.current_mode]
         )
@@ -707,7 +753,14 @@ class IntegratedCADApp(QMainWindow):
         )
         
         if folder:
+            previous_dir = self.output_dir
             self.output_dir = folder
+            logger.info(
+                "出力先変更: %s -> %s (mode=%s)",
+                previous_dir,
+                self.output_dir,
+                self.current_mode,
+            )
             self.output_label.setText(
                 f"{self._output_dir_label()} : {self.output_dir}"
             )
@@ -726,9 +779,20 @@ class IntegratedCADApp(QMainWindow):
 
         files = [u.toLocalFile() for u in event.mimeData().urls()]
 
+        logger.info(
+            "ドロップ受信: mode=%s files=%s",
+            self.current_mode,
+            files,
+        )
+
         for file_path in files:
 
             ext = os.path.splitext(file_path)[1].lower()
+            logger.debug(
+                "ドロップ処理: file=%s ext=%s",
+                file_path,
+                ext,
+            )
 
             # ----------------------------------------
             # R Checker Mode
@@ -765,6 +829,13 @@ class IntegratedCADApp(QMainWindow):
 
                 if ext == ".ai":
                     self.convert_ai_to_dxf(file_path)
+                else:
+                    logger.warning(
+                        "未対応ファイル: mode=%s ext=%s file=%s",
+                        self.current_mode,
+                        ext,
+                        file_path,
+                    )
 
             break
 
@@ -772,6 +843,8 @@ class IntegratedCADApp(QMainWindow):
     # DXF PROCESS
     # =====================================================
     def process_dxf(self, file_path):
+
+        logger.info("DXF解析開始: file=%s", file_path)
 
         try:
 
@@ -946,7 +1019,16 @@ class IntegratedCADApp(QMainWindow):
                 found_large_r or found_short_arc,
             )
 
+            logger.info(
+                "DXF解析完了: file=%s large_r=%s short_arc=%s",
+                file_path,
+                found_large_r,
+                found_short_arc,
+            )
+
         except Exception as e:
+
+            logger.exception("DXF解析エラー: file=%s", file_path)
 
             self.show_error(
                 f"DXFエラー : {str(e)}"
@@ -956,6 +1038,8 @@ class IntegratedCADApp(QMainWindow):
     # GCODE PROCESS
     # =========================================================
     def process_gcode(self, file_path):
+
+        logger.info("Gコード解析開始: file=%s", file_path)
 
         try:
 
@@ -1350,7 +1434,16 @@ class IntegratedCADApp(QMainWindow):
                 found_large_r or found_short_arc,
             )
 
+            logger.info(
+                "Gコード解析完了: file=%s large_r=%s short_arc=%s",
+                file_path,
+                found_large_r,
+                found_short_arc,
+            )
+
         except Exception as e:
+
+            logger.exception("Gコード解析エラー: file=%s", file_path)
 
             self.show_error(
                 f"Gコードエラー : {str(e)}"
@@ -1486,6 +1579,7 @@ class IntegratedCADApp(QMainWindow):
 
     def _show_converting(self, message):
 
+        logger.info(message)
         self.drop_label.setStyleSheet(
             """
             QLabel {
@@ -1502,6 +1596,7 @@ class IntegratedCADApp(QMainWindow):
 
     def _show_convert_success(self, message):
 
+        logger.info(message)
         self.drop_label.setStyleSheet(
             """
             QLabel {
@@ -1539,12 +1634,26 @@ class IntegratedCADApp(QMainWindow):
         if extra_options:
             cmd.extend(extra_options)
 
+        logger.info(
+            "Inkscape変換開始: input=%s output=%s type=%s",
+            input_path,
+            output_path,
+            export_type,
+        )
+        logger.debug("Inkscapeコマンド: %s", cmd)
+
         try:
             self._show_converting(processing_text)
             subprocess.run(cmd, check=True)
+            logger.info("Inkscape変換成功: output=%s", output_path)
             return True
 
         except Exception as e:
+            logger.exception(
+                "Inkscape変換失敗: input=%s output=%s",
+                input_path,
+                output_path,
+            )
             self.show_error(f"{error_prefix} : {str(e)}")
             return False
 
@@ -1553,6 +1662,7 @@ class IntegratedCADApp(QMainWindow):
     # =====================================================
     def convert_dxf_to_eps(self, dxf_path):
 
+        logger.info("EPS変換開始: file=%s", dxf_path)
         eps_path = self._make_output_path(dxf_path, ".eps")
 
         extra_options = [
@@ -1618,6 +1728,13 @@ class IntegratedCADApp(QMainWindow):
                 f"DXF変換中... ({self.dxf_downgrade_format})"
             )
 
+            logger.info(
+                "ODA変換開始: input=%s output=%s version=%s",
+                dxf_path,
+                output_path,
+                self.dxf_downgrade_format,
+            )
+
             odafc.convert(
                 dxf_path,
                 output_path,
@@ -1625,16 +1742,29 @@ class IntegratedCADApp(QMainWindow):
                 replace=True,
             )
 
+            logger.info("ODA変換成功: output=%s", output_path)
             self._show_convert_success(
                 f"DXF変換完了 : {os.path.basename(output_path)}"
             )
 
         except Exception as e:
+            logger.exception(
+                "ODA変換失敗: input=%s version=%s",
+                dxf_path,
+                self.dxf_downgrade_format,
+            )
             self.show_error(f"DXF変換失敗 : {str(e)}")
 
     def convert_dxf_to_dxf(self, dxf_path):
 
         output_path = self._make_output_path(dxf_path, ".dxf")
+
+        logger.info(
+            "DXFダウングレード開始: file=%s format=%s output=%s",
+            dxf_path,
+            self.dxf_downgrade_format,
+            output_path,
+        )
 
         if self.dxf_downgrade_inkscape_extension:
             self._export_dxf_via_inkscape(
@@ -1652,6 +1782,7 @@ class IntegratedCADApp(QMainWindow):
     # =====================================================
     def convert_dxf_to_pdf(self, dxf_path):
 
+        logger.info("PDF変換開始(DXF): file=%s", dxf_path)
         pdf_path = self._make_output_path(dxf_path, ".pdf")
 
         extra_options = [
@@ -1673,6 +1804,7 @@ class IntegratedCADApp(QMainWindow):
 
     def convert_eps_to_pdf(self, eps_path):
 
+        logger.info("PDF変換開始(EPS): file=%s", eps_path)
         pdf_path = self._make_output_path(eps_path, ".pdf")
 
         if self._run_inkscape_export(
@@ -1688,6 +1820,11 @@ class IntegratedCADApp(QMainWindow):
 
     def convert_ai_to_dxf(self, ai_path):
 
+        logger.info(
+            "DXF変換開始(AI): file=%s format=%s",
+            ai_path,
+            self.ai_dxf_format,
+        )
         dxf_path = self._make_output_path(ai_path, ".dxf")
 
         self._export_dxf_via_inkscape(
@@ -1701,6 +1838,8 @@ class IntegratedCADApp(QMainWindow):
     # Error Display
     # =====================================================
     def show_error(self, message):
+
+        logger.error(message)
 
         self.drop_label.setStyleSheet(
             """
@@ -1721,8 +1860,13 @@ class IntegratedCADApp(QMainWindow):
     # =====================================================
     def load_yaml(self, file_path):
 
+        logger.info("設定読込: path=%s", file_path)
+
         with open(file_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+
+        logger.debug("設定読込完了: keys=%s", list(config.keys()))
+        return config
 
 
 # =========================================================
@@ -1730,10 +1874,14 @@ class IntegratedCADApp(QMainWindow):
 # =========================================================
 if __name__ == "__main__":
 
+    logger.info("アプリケーション起動")
+
     app = QApplication(sys.argv)
 
     window = IntegratedCADApp()
 
     window.show()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    logger.info("アプリケーション終了: exit_code=%s", exit_code)
+    sys.exit(exit_code)

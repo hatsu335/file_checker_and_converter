@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from logging_setup import logger
+
 
 class NotepadHistoryCleaner:
 
@@ -21,8 +23,11 @@ class NotepadHistoryCleaner:
     # =====================================================
     def clear_history(self):
 
+        logger.info("TabState削除開始: path=%s", self.tabstate_path)
+
         if not os.path.exists(self.tabstate_path):
 
+            logger.warning("TabState不存在: path=%s", self.tabstate_path)
             return (
                 False,
                 "TabState フォルダが存在しません",
@@ -46,12 +51,16 @@ class NotepadHistoryCleaner:
             # -----------------------------------------
             shutil.rmtree(self.tabstate_path)
 
+            logger.info("TabState削除成功: deleted=%s", deleted_count)
+
             return (
                 True,
                 f"{deleted_count} 件削除しました",
             )
 
         except Exception as e:
+
+            logger.exception("TabState削除失敗")
 
             return (
                 False,

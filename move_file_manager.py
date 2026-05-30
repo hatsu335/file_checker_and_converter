@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from logging_setup import logger
+
 
 class MoveFileManager:
 
@@ -49,10 +51,13 @@ class MoveFileManager:
     
     def execute(self, key, overwrite_callback=None):
 
+        logger.info("ファイル移動処理開始: key=%s", key)
+
         move_config = self.config.get(key)
 
         if not move_config:
 
+            logger.error("ファイル移動: 設定不存在 key=%s", key)
             return False, "設定が存在しません"
 
         out_folder = move_config.get(
@@ -70,6 +75,7 @@ class MoveFileManager:
 
         if not os.path.exists(out_folder):
 
+            logger.error("ファイル移動: 移動元不存在 path=%s", out_folder)
             return False, "移動元フォルダが存在しません"
 
         os.makedirs(
@@ -122,6 +128,7 @@ class MoveFileManager:
                     # NO
                     if not overwrite:
 
+                        logger.info("ファイル移動: スキップ(上書き拒否) file=%s", name)
                         skip_count += 1
                         continue
 
@@ -142,9 +149,17 @@ class MoveFileManager:
                     dst_path,
                 )
 
+                logger.info(
+                    "ファイル移動: 成功 src=%s dst=%s",
+                    src_path,
+                    dst_path,
+                )
+
                 moved_count += 1
 
             except Exception as e:
+
+                logger.exception("ファイル移動: 失敗 file=%s", name)
 
                 return (
                     False,
@@ -160,5 +175,11 @@ class MoveFileManager:
             msg += (
                 f"\n{skip_count} 件スキップ"
             )
+
+        logger.info(
+            "ファイル移動処理完了: moved=%s skipped=%s",
+            moved_count,
+            skip_count,
+        )
 
         return True, msg

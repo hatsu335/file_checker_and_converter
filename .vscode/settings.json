@@ -1,4 +1,10 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "diffEditor.renderSideBySide": true,
+    "diffEditor.ignoreTrimWhitespace": false,
+    "scm.diffDecorations": "all",
+    "git.openDiffOnClick": true,
+    "git.enableSmartCommit": false,
+    "editor.renderWhitespace": "selection"
 }
