@@ -6,5 +6,6 @@
     "scm.diffDecorations": "all",
     "git.openDiffOnClick": true,
     "git.enableSmartCommit": false,
-    "editor.renderWhitespace": "selection"
+    "editor.renderWhitespace": "selection",
+    "chat.disableAIFeatures": false
 }

@@ -3,6 +3,7 @@ import sys
 import os
 import re
 import math
+import shutil
 import subprocess
 import datetime
 import ezdxf
@@ -61,8 +62,6 @@ class IntegratedCADApp(QMainWindow):
 
         self.mode_label_dxf_pdf = self.config.get("mode_label_dxf_pdf", "DXF → PDF")
 
-        self.mode_label_eps_pdf = self.config.get("mode_label_eps_pdf", "EPS → PDF")
-
         self.mode_label_ai_dxf = self.config.get("mode_label_ai_dxf", "AI → DXF")
 
         self.modes = [
@@ -70,7 +69,6 @@ class IntegratedCADApp(QMainWindow):
             self.mode_label_eps,
             self.mode_label_dxf_dxf,
             self.mode_label_dxf_pdf,
-            self.mode_label_eps_pdf,
             self.mode_label_ai_dxf,
         ]
 
@@ -111,15 +109,6 @@ class IntegratedCADApp(QMainWindow):
                     border-radius: 4px;
                 }
             """,
-            self.mode_label_eps_pdf: """
-                QLabel {
-                    background-color: #c0c6c9;
-                    color: black;
-                    padding: 4px 12px;
-                    font-weight: bold;
-                    border-radius: 4px;
-                }
-            """,
             self.mode_label_ai_dxf: """
                 QLabel {
                     background-color: #ffea00;
@@ -149,11 +138,18 @@ class IntegratedCADApp(QMainWindow):
             self.ai_dxf_format,
             INKSCAPE_DXF_FORMATS["R14"],
         )
-        
+
         # =========================================================
         # Inkscape Path
         # =========================================================
         self.INKSCAPE_PATH = self.config["inkscape"]
+
+        self.ghostscript_path = (
+            shutil.which("gswin64c")
+            or shutil.which("gswin32c")
+            or shutil.which("gs")
+        )
+        self.ghostscript_available = bool(self.ghostscript_path)
 
         oda_path = self.config.get("oda_file_converter")
         if oda_path:
@@ -683,7 +679,6 @@ class IntegratedCADApp(QMainWindow):
 
         if self.current_mode in (
             self.mode_label_dxf_pdf,
-            self.mode_label_eps_pdf,
         ):
             return "PDF保存先"
 
@@ -716,9 +711,6 @@ class IntegratedCADApp(QMainWindow):
             self.mode_label_dxf_pdf: (
                 "DXF をこの画面にドラッグ＆ドロップしてください（PDF自動変換）"
             ),
-            self.mode_label_eps_pdf: (
-                "EPS をこの画面にドラッグ＆ドロップしてください（PDF自動変換）"
-            ),
             self.mode_label_ai_dxf: (
                 f"AI をこの画面にドラッグ＆ドロップしてください（DXF {self.ai_dxf_format} 自動変換）"
             ),
@@ -737,7 +729,6 @@ class IntegratedCADApp(QMainWindow):
             self.mode_label_eps: "EPS 出力先を選択",
             self.mode_label_dxf_dxf: "DXF 出力先を選択",
             self.mode_label_dxf_pdf: "PDF 出力先を選択",
-            self.mode_label_eps_pdf: "PDF 出力先を選択",
             self.mode_label_ai_dxf: "DXF 出力先を選択",
         }
 
@@ -819,11 +810,6 @@ class IntegratedCADApp(QMainWindow):
 
                 if ext == ".dxf":
                     self.convert_dxf_to_pdf(file_path)
-
-            elif self.current_mode == self.mode_label_eps_pdf:
-
-                if ext == ".eps":
-                    self.convert_eps_to_pdf(file_path)
 
             elif self.current_mode == self.mode_label_ai_dxf:
 
@@ -1618,6 +1604,7 @@ class IntegratedCADApp(QMainWindow):
         extra_options=None,
         processing_text="変換中...",
         error_prefix="変換失敗",
+        show_error_on_failure=True,
     ):
 
         if not os.path.exists(self.INKSCAPE_PATH):
@@ -1644,7 +1631,28 @@ class IntegratedCADApp(QMainWindow):
 
         try:
             self._show_converting(processing_text)
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            if not os.path.exists(output_path):
+                logger.error(
+                    "Inkscapeは正常終了しましたが、出力ファイルが作成されませんでした: %s",
+                    output_path,
+                )
+                logger.error("Inkscape stdout: %s", result.stdout)
+                logger.error("Inkscape stderr: %s", result.stderr)
+                if show_error_on_failure:
+                    self.show_error(
+                        f"{error_prefix} : 出力ファイルが作成されませんでした。"
+                    )
+                return False
+
+            logger.debug("Inkscape stdout: %s", result.stdout)
+            logger.debug("Inkscape stderr: %s", result.stderr)
             logger.info("Inkscape変換成功: output=%s", output_path)
             return True
 
@@ -1654,7 +1662,8 @@ class IntegratedCADApp(QMainWindow):
                 input_path,
                 output_path,
             )
-            self.show_error(f"{error_prefix} : {str(e)}")
+            if show_error_on_failure:
+                self.show_error(f"{error_prefix} : {str(e)}")
             return False
 
     # =====================================================
@@ -1692,12 +1701,15 @@ class IntegratedCADApp(QMainWindow):
         output_path,
         format_label,
         extension,
+        extra_options=None,
+        show_error_on_failure=True,
     ):
 
-        extra_options = [
-            "--export-area-drawing",
-            f"--export-extension={extension}",
-        ]
+        if extra_options is None:
+            extra_options = [
+                "--export-area-drawing",
+                f"--export-extension={extension}",
+            ]
 
         if self._run_inkscape_export(
             input_path,
@@ -1706,10 +1718,14 @@ class IntegratedCADApp(QMainWindow):
             extra_options=extra_options,
             processing_text=f"DXF変換中... ({format_label})",
             error_prefix="DXF変換失敗",
+            show_error_on_failure=show_error_on_failure,
         ):
             self._show_convert_success(
                 f"DXF変換完了 : {os.path.basename(output_path)}"
             )
+            return True
+
+        return False
 
     def _convert_dxf_via_odafc(self, dxf_path, output_path):
 
@@ -1802,22 +1818,6 @@ class IntegratedCADApp(QMainWindow):
                 f"PDF変換完了 : {os.path.basename(pdf_path)}"
             )
 
-    def convert_eps_to_pdf(self, eps_path):
-
-        logger.info("PDF変換開始(EPS): file=%s", eps_path)
-        pdf_path = self._make_output_path(eps_path, ".pdf")
-
-        if self._run_inkscape_export(
-            eps_path,
-            pdf_path,
-            "pdf",
-            processing_text="PDF変換中...",
-            error_prefix="PDF変換失敗",
-        ):
-            self._show_convert_success(
-                f"PDF変換完了 : {os.path.basename(pdf_path)}"
-            )
-
     def convert_ai_to_dxf(self, ai_path):
 
         logger.info(
@@ -1827,12 +1827,28 @@ class IntegratedCADApp(QMainWindow):
         )
         dxf_path = self._make_output_path(ai_path, ".dxf")
 
-        self._export_dxf_via_inkscape(
+        if self._export_dxf_via_inkscape(
             ai_path,
             dxf_path,
             self.ai_dxf_format,
             self.ai_dxf_extension,
+            show_error_on_failure=False,
+        ):
+            return
+
+        logger.info(
+            "AIファイルのDXF変換を再試行します: アートボード領域指定(--export-area-page)"
         )
+        if not self._export_dxf_via_inkscape(
+            ai_path,
+            dxf_path,
+            self.ai_dxf_format,
+            self.ai_dxf_extension,
+            extra_options=["--export-area-page"],
+        ):
+            self.show_error(
+                "AI→DXF変換に失敗しました。アートボードやアートボード外の要素を確認してください。"
+            )
 
     # =====================================================
     # Error Display
